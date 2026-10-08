@@ -1,0 +1,39 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: cimg/python:3.13
+    environment:
+      # Keep the virtualenv inside the workspace so it can be cached.
+      POETRY_VIRTUALENVS_IN_PROJECT: "true"
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - poetry-v1-{{ checksum "poetry.lock" }}
+
+      - run:
+          name: Install dependencies
+          command: |
+            poetry --version
+            poetry install
+
+      - run:
+          name: Test with pytest
+          command: |
+            poetry run pytest tests -v --junitxml=test-results/junit.xml
+
+      - save_cache:
+          key: poetry-v1-{{ checksum "poetry.lock" }}
+          paths:
+            - .venv
+
+      - store_test_results:
+          path: test-results
+
+workflows:
+  build:
+    jobs:
+      - test
