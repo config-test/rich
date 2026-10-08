@@ -1,0 +1,58 @@
+version: 2.1
+
+jobs:
+  rich:
+    docker:
+      # Python 3.11 is the newest version this repo's pinned dev tooling
+      # supports (pytest 7.4.4, black 22.12.0, mypy 1.14.1 in poetry.lock).
+      - image: cimg/python:3.11
+    steps:
+      - checkout
+
+      # poetry.lock is currently out of sync with pyproject.toml, so the
+      # install step below may rewrite it. Snapshot it first so the cache key
+      # is identical on restore and save.
+      - run:
+          name: Snapshot lockfile for cache key
+          command: cp poetry.lock .lockfile-cachekey
+
+      - restore_cache:
+          keys:
+            - v1-rich-deps-{{ checksum ".lockfile-cachekey" }}
+
+      - run:
+          name: Install dependencies
+          command: |
+            poetry config virtualenvs.in-project true
+            # Re-lock only if poetry.lock no longer matches pyproject.toml.
+            poetry check --lock || poetry lock
+            poetry install --no-interaction
+
+      - save_cache:
+          key: v1-rich-deps-{{ checksum ".lockfile-cachekey" }}
+          paths:
+            - .venv
+
+      - run:
+          name: Build
+          command: poetry build
+
+      - run:
+          name: Test
+          # Makefile target: TERM=unknown pytest --cov-report term-missing --cov=rich tests/ -vv
+          command: poetry run make test
+
+      - run:
+          name: Lint (black)
+          # Makefile target: black --check .
+          command: poetry run make format-check
+
+      - run:
+          name: Typecheck (mypy)
+          # Makefile target: mypy -p rich --no-incremental
+          command: poetry run make typecheck
+
+workflows:
+  build-test-lint:
+    jobs:
+      - rich
