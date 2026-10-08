@@ -1,0 +1,34 @@
+version: 2.1
+
+jobs:
+  build-and-test:
+    docker:
+      - image: cimg/python:3.14
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-deps-{{ checksum "poetry.lock" }}
+      - run:
+          name: Install dependencies
+          command: |
+            poetry config virtualenvs.in-project true
+            poetry install
+      - save_cache:
+          key: v1-deps-{{ checksum "poetry.lock" }}
+          paths:
+            - .venv
+            - ~/.cache/pypoetry
+      - run:
+          name: Lint
+          command: |
+            poetry run make format-check
+            poetry run make typecheck
+      - run:
+          name: Test
+          command: poetry run make test
+
+workflows:
+  main:
+    jobs:
+      - build-and-test
