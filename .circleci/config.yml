@@ -1,0 +1,40 @@
+version: 2.1
+
+jobs:
+  rich:
+    docker:
+      - image: cimg/python:3.13
+    environment:
+      POETRY_VIRTUALENVS_IN_PROJECT: "true"
+      POETRY_NO_INTERACTION: "1"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-rich-py313-{{ arch }}-{{ checksum "poetry.lock" }}-{{ checksum "docs/requirements.txt" }}
+      - run:
+          name: Install dependencies
+          command: |
+            poetry install
+            poetry run python -m pip install -r docs/requirements.txt
+      - save_cache:
+          key: v1-rich-py313-{{ arch }}-{{ checksum "poetry.lock" }}-{{ checksum "docs/requirements.txt" }}
+          paths:
+            - ~/.cache/pypoetry
+            - ~/.cache/pip
+      - run:
+          name: Build documentation
+          command: poetry run make docs
+      - run:
+          name: Test with coverage
+          command: poetry run make test
+      - run:
+          name: Check formatting and types
+          command: |
+            poetry run make format-check
+            poetry run make typecheck
+
+workflows:
+  ci:
+    jobs:
+      - rich
