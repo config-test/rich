@@ -1,0 +1,64 @@
+version: 2.1
+
+jobs:
+  rich:
+    docker:
+      - image: cimg/python:3.11
+    environment:
+      # Keep the virtualenv inside the workspace so it can be cached.
+      POETRY_VIRTUALENVS_IN_PROJECT: "true"
+      # The Makefile's test target sets this; rich's tests expect a dumb terminal.
+      TERM: unknown
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - rich-poetry-v1-{{ checksum "poetry.lock" }}
+            - rich-poetry-v1-
+
+      - run:
+          name: Install Poetry
+          # The committed poetry.lock is lock-version 2.1, which needs Poetry 2.x.
+          command: python -m pip install --user --upgrade 'poetry>=2.1'
+
+      - run:
+          name: Install dependencies
+          command: |
+            # poetry.lock is currently out of sync with pyproject.toml, so
+            # `poetry install` rejects it. Re-lock for this build only, then put
+            # the committed lockfile back so the save_cache checksum below still
+            # matches the one restore_cache used.
+            cp poetry.lock /tmp/poetry.lock.committed
+            poetry check --lock || poetry lock
+            poetry install
+            cp /tmp/poetry.lock.committed poetry.lock
+
+      - save_cache:
+          key: rich-poetry-v1-{{ checksum "poetry.lock" }}
+          paths:
+            - .venv
+
+      - run:
+          name: Build
+          command: poetry build
+
+      - run:
+          name: Test
+          # Makefile `test` target.
+          command: poetry run pytest --cov-report term-missing --cov=rich tests/ -vv
+
+      - run:
+          name: Format check
+          # Makefile `format-check` target.
+          command: poetry run black --check .
+
+      - run:
+          name: Typecheck
+          # Makefile `typecheck` target.
+          command: poetry run mypy -p rich --no-incremental
+
+workflows:
+  ci:
+    jobs:
+      - rich
