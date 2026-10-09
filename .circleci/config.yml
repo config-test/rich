@@ -1,0 +1,40 @@
+version: 2.1
+
+jobs:
+  rich:
+    docker:
+      # Python 3.12 is also tested by the existing GitHub Actions workflow.
+      - image: cimg/python:3.12
+    environment:
+      POETRY_VIRTUALENVS_IN_PROJECT: "true"
+      POETRY_NO_INTERACTION: "1"
+      TERM: unknown
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-rich-python-3.12-{{ arch }}-{{ checksum "poetry.lock" }}-{{ checksum "pyproject.toml" }}
+      - run:
+          name: Install dependencies
+          command: poetry install
+      - save_cache:
+          key: v1-rich-python-3.12-{{ arch }}-{{ checksum "poetry.lock" }}-{{ checksum "pyproject.toml" }}
+          paths:
+            - .venv
+            - ~/.cache/pypoetry
+      - run:
+          name: Build package
+          command: poetry build
+      - run:
+          name: Test with coverage
+          command: poetry run make test
+      - run:
+          name: Check formatting and types
+          command: |
+            poetry run make format-check
+            poetry run make typecheck
+
+workflows:
+  check:
+    jobs:
+      - rich
