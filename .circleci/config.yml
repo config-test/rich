@@ -1,0 +1,42 @@
+version: 2.1
+
+jobs:
+  test:
+    docker:
+      - image: cimg/python:3.14
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-deps-{{ checksum "poetry.lock" }}
+      - run:
+          name: Configure Poetry
+          command: poetry config virtualenvs.in-project true
+      - run:
+          name: Install dependencies
+          command: poetry install
+      - save_cache:
+          key: v1-deps-{{ checksum "poetry.lock" }}
+          paths:
+            - .venv
+      # No separate build step — this is an installable library; existing CI does not build a package artifact.
+      - run:
+          name: Test
+          command: |
+            . .venv/bin/activate
+            make test
+      - run:
+          name: Lint (format check)
+          command: |
+            . .venv/bin/activate
+            make format-check
+      - run:
+          name: Lint (typecheck)
+          command: |
+            . .venv/bin/activate
+            make typecheck
+
+workflows:
+  main:
+    jobs:
+      - test
